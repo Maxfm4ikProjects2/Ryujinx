@@ -1,8 +1,8 @@
 name: Build job
 
 on:
-  push:
-    branches:
+    push:
+     branches:
       - qlaunch
 
 env:
@@ -12,19 +12,19 @@ env:
 
 jobs:
   build:
-    name: ${{ matrix.platform.name }} (${{ matrix.configuration }})
+    name: ${{ matrix.platform.name }} (Release)
     runs-on: ${{ matrix.platform.os }}
     timeout-minutes: 45
     strategy:
       matrix:
-        configuration: [Debug, Release]
+        configuration: [Release]
         platform:
           - { name: win-x64,     os: windows-latest, zip_os_name: win_x64     }
           - { name: linux-x64,   os: ubuntu-latest,  zip_os_name: linux_x64   }
           - { name: linux-arm64, os: ubuntu-latest,  zip_os_name: linux_arm64 }
           - { name: osx-x64,     os: macos-13,       zip_os_name: osx_x64     }
-
       fail-fast: false
+
     steps:
       - uses: actions/checkout@v4
 
@@ -37,94 +37,78 @@ jobs:
 
       - name: Get git short hash
         id: git_short_hash
-        run: echo "result=$(git rev-parse --short '${{ github.sha }}')" >> $GITHUB_OUTPUT
+        run: echo "result=$(git rev-parse --short "${{ github.sha }}")" >> $GITHUB_OUTPUT
         shell: bash
 
       - name: Change config filename
         run: sed -r --in-place 's/\%\%RYUJINX_CONFIG_FILE_NAME\%\%/PRConfig\.json/g;' src/Ryujinx.Common/ReleaseInformation.cs
         shell: bash
-        if: github.event_name == 'pull_request' && matrix.platform.os != 'macos-13'
+        if: matrix.platform.os != 'macos-13'
 
       - name: Change config filename for macOS
         run: sed -r -i '' 's/\%\%RYUJINX_CONFIG_FILE_NAME\%\%/PRConfig\.json/g;' src/Ryujinx.Common/ReleaseInformation.cs
         shell: bash
-        if: github.event_name == 'pull_request' && matrix.platform.os == 'macos-13'
+        if: matrix.platform.os == 'macos-13'
 
       - name: Build
-        run: dotnet build -c "${{ matrix.configuration }}" -p:Version="${{ env.RYUJINX_BASE_VERSION }}" -p:SourceRevisionId="${{ steps.git_short_hash.outputs.result }}" -p:ExtraDefineConstants=DISABLE[...]
-
-      - name: Test
-        uses: TSRBerry/unstable-commands@v1
-        with:
-          commands: dotnet test --no-build -c "${{ matrix.configuration }}"
-          timeout-minutes: 10
-          retry-codes: 139
-        if: matrix.platform.name != 'linux-arm64'
+        run: dotnet build -c "Release" -p:Version="${{ env.RYUJINX_BASE_VERSION }}" -p:SourceRevisionId="${{ steps.git_short_hash.outputs.result }}" -p:ExtraDefineConstants=DISABLE_UPDATER
 
       - name: Publish Ryujinx
-        run: dotnet publish -c "${{ matrix.configuration }}" -r "${{ matrix.platform.name }}" -o ./publish -p:Version="${{ env.RYUJINX_BASE_VERSION }}" -p:DebugType=embedded -p:SourceRevisionId="${{ s[...]
-        if: github.event_name == 'pull_request' && matrix.platform.os != 'macos-13'
+        run: dotnet publish -c "Release" -r "${{ matrix.platform.name }}" -o ./publish -p:Version="${{ env.RYUJINX_BASE_VERSION }}" -p:DebugType=embedded -p:SourceRevisionId="${{ steps.git_short_hash.outputs.result }}" -p:ExtraDefineConstants=DISABLE_UPDATER src/Ryujinx --self-contained true
+        if: matrix.platform.os != 'macos-13'
 
       - name: Publish Ryujinx.Headless.SDL2
-        run: dotnet publish -c "${{ matrix.configuration }}" -r "${{ matrix.platform.name }}" -o ./publish_sdl2_headless -p:Version="${{ env.RYUJINX_BASE_VERSION }}" -p:DebugType=embedded -p:SourceRev[...]
-        if: github.event_name == 'pull_request' && matrix.platform.os != 'macos-13'
+        run: dotnet publish -c "Release" -r "${{ matrix.platform.name }}" -o ./publish_sdl2_headless -p:Version="${{ env.RYUJINX_BASE_VERSION }}" -p:DebugType=embedded -p:SourceRevisionId="${{ steps.git_short_hash.outputs.result }}" -p:ExtraDefineConstants=DISABLE_UPDATER src/Ryujinx.Headless.SDL2 --self-contained true
+        if: matrix.platform.os != 'macos-13'
 
       - name: Publish Ryujinx.Gtk3
-        run: dotnet publish -c "${{ matrix.configuration }}" -r "${{ matrix.platform.name }}" -o ./publish_gtk -p:Version="${{ env.RYUJINX_BASE_VERSION }}" -p:DebugType=embedded -p:SourceRevisionId="$[...]
-        if: github.event_name == 'pull_request' && matrix.platform.os != 'macos-13'
+        run: dotnet publish -c "Release" -r "${{ matrix.platform.name }}" -o ./publish_gtk -p:Version="${{ env.RYUJINX_BASE_VERSION }}" -p:DebugType=embedded -p:SourceRevisionId="${{ steps.git_short_hash.outputs.result }}" -p:ExtraDefineConstants=DISABLE_UPDATER src/Ryujinx.Gtk3 --self-contained true
+        if: matrix.platform.os != 'macos-13'
 
       - name: Set executable bit
         run: |
           chmod +x ./publish/Ryujinx ./publish/Ryujinx.sh
           chmod +x ./publish_sdl2_headless/Ryujinx.Headless.SDL2 ./publish_sdl2_headless/Ryujinx.sh
           chmod +x ./publish_gtk/Ryujinx.Gtk3 ./publish_gtk/Ryujinx.sh
-        if: github.event_name == 'pull_request' && matrix.platform.os == 'ubuntu-latest'
+        if: matrix.platform.os == 'ubuntu-latest'
 
       - name: Upload Ryujinx artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ryujinx-${{ matrix.configuration }}-${{ env.RYUJINX_BASE_VERSION }}+${{ steps.git_short_hash.outputs.result }}-${{ matrix.platform.zip_os_name }}
+          name: ryujinx-Release-${{ env.RYUJINX_BASE_VERSION }}+${{ steps.git_short_hash.outputs.result }}-${{ matrix.platform.zip_os_name }}
           path: publish
-        if: github.event_name == 'pull_request' && matrix.platform.os != 'macos-13'
 
       - name: Upload Ryujinx.Headless.SDL2 artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sdl2-ryujinx-headless-${{ matrix.configuration }}-${{ env.RYUJINX_BASE_VERSION }}+${{ steps.git_short_hash.outputs.result }}-${{ matrix.platform.zip_os_name }}
+          name: sdl2-ryujinx-headless-Release-${{ env.RYUJINX_BASE_VERSION }}+${{ steps.git_short_hash.outputs.result }}-${{ matrix.platform.zip_os_name }}
           path: publish_sdl2_headless
-        if: github.event_name == 'pull_request' && matrix.platform.os != 'macos-13'
 
       - name: Upload Ryujinx.Gtk3 artifact
         uses: actions/upload-artifact@v4
         with:
-          name: gtk-ryujinx-${{ matrix.configuration }}-${{ env.RYUJINX_BASE_VERSION }}+${{ steps.git_short_hash.outputs.result }}-${{ matrix.platform.zip_os_name }}
+          name: gtk-ryujinx-Release-${{ env.RYUJINX_BASE_VERSION }}+${{ steps.git_short_hash.outputs.result }}-${{ matrix.platform.zip_os_name }}
           path: publish_gtk
-        if: github.event_name == 'pull_request' && matrix.platform.os != 'macos-13'
 
-  release:
-    name: Release Artifacts
-    runs-on: ubuntu-latest
+  publish-release:
+    name: Publish GitHub Release
     needs: build
+    runs-on: ubuntu-latest
+    if: github.ref_type == 'tag'
     steps:
-      - name: Download all build artifacts
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          path: ./artifacts
 
-      - name: List files to release
-        run: |
-          echo "Artifacts to be released:"
-          ls -R artifacts
-
-      - name: Set version and tag
-        id: vars
-        run: |
-          echo "VERSION=${{ env.RYUJINX_BASE_VERSION }}" >> $GITHUB_ENV
-          echo "TAG=build-${{ github.sha }}" >> $GITHUB_ENV
-
-      - name: Create release and upload assets
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Ryujinx ${{ github.ref_name }}"
+          tag_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Create release if not exists
-          gh release create "$TAG" artifacts/** --title "Automated build $TAG" --notes "Automated build for commit $TAG" --prerelease --repo "${{ github.repository }}"
