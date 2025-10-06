@@ -1,7 +1,9 @@
 name: Build job
 
 on:
-  workflow_call:
+  push:
+    branches:
+      - qlaunch
 
 env:
   POWERSHELL_TELEMETRY_OPTOUT: 1
