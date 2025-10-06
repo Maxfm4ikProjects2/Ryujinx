@@ -22,7 +22,7 @@
             alt="">
     </a>
     <a href="https://crwd.in/ryujinx">
-        <img src="https://badges.crowdin.net/ryujinx/localized.svg"
+        <img src="https://badges.crowdin.net/ryujinx/localized.svga"
             alt="">
     </a>
     <a href="https://discord.com/invite/VkQYXAZ">
